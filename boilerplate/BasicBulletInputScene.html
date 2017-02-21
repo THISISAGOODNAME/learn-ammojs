@@ -11,11 +11,11 @@
         }
     </style>
 
-    <script src="js/three.js"></script>
-    <script src="js/libs/ammo.js"></script>
-    <script src="js/controls/OrbitControls.js"></script>
-    <script src="js/libs/stats.min.js"></script>
-    <script src="js/Detector.js"></script>
+    <script src="../js/three.js"></script>
+    <script src="../js/libs/ammo.js"></script>
+    <script src="../js/controls/OrbitControls.js"></script>
+    <script src="../js/libs/stats.min.js"></script>
+    <script src="../js/Detector.js"></script>
 </head>
 <body>
 
@@ -160,7 +160,7 @@
         var ground = createParallellepiped(40, 1, 40, 0, pos, quat, new THREE.MeshPhongMaterial({color: 0xffffff}));
         ground.castShadow = true;       // 开启投影
         ground.receiveShadow = true;    // 接受阴影(可以在表面上显示阴影)
-        textureLoader.load("./textures/grid.png", function (texture) {
+        textureLoader.load("../textures/grid.png", function (texture) {
             texture.wrapS = THREE.RepeatWrapping;
             texture.wrapT = THREE.RepeatWrapping;
             texture.repeat.set(40, 40);

@@ -11,11 +11,11 @@
         }
     </style>
 
-    <script src="js/three.js"></script>
-    <script src="js/libs/ammo.js"></script>
-    <script src="js/controls/OrbitControls.js"></script>
-    <script src="js/libs/stats.min.js"></script>
-    <script src="js/Detector.js"></script>
+    <script src="../js/three.js"></script>
+    <script src="../js/libs/ammo.js"></script>
+    <script src="../js/controls/OrbitControls.js"></script>
+    <script src="../js/libs/stats.min.js"></script>
+    <script src="../js/Detector.js"></script>
 </head>
 <body>
 
@@ -52,11 +52,6 @@
     //
     var time = 0;
 
-    // 鼠标输入相关
-    var mouseCoords = new THREE.Vector2();
-    var raycaster = new THREE.Raycaster();
-    var ballMaterial = new THREE.MeshPhongMaterial( { color: 0x202020 } );
-
     // - 主程序
     init();
     animate();
@@ -69,8 +64,6 @@
         initPhysics();
 
         createObjects();
-
-        initInput();
     }
 
     function initGraphics() {
@@ -160,7 +153,7 @@
         var ground = createParallellepiped(40, 1, 40, 0, pos, quat, new THREE.MeshPhongMaterial({color: 0xffffff}));
         ground.castShadow = true;       // 开启投影
         ground.receiveShadow = true;    // 接受阴影(可以在表面上显示阴影)
-        textureLoader.load("./textures/grid.png", function (texture) {
+        textureLoader.load("../textures/grid.png", function (texture) {
             texture.wrapS = THREE.RepeatWrapping;
             texture.wrapT = THREE.RepeatWrapping;
             texture.repeat.set(40, 40);
@@ -211,7 +204,6 @@
 
         physicsWorld.addRigidBody(body);
 
-        return body;
     }
 
     function animate() {
@@ -251,41 +243,6 @@
                 objThree.quaternion.set(q.x(), q.y(), q.z(), q.w());
             }
         }
-    }
-
-    function initInput() {
-
-        window.addEventListener( 'mousedown', function( event ) {
-
-            mouseCoords.set(
-                    ( event.clientX / window.innerWidth ) * 2 - 1,
-                    - ( event.clientY / window.innerHeight ) * 2 + 1
-            );
-
-            raycaster.setFromCamera( mouseCoords, camera );
-
-            // Creates a ball and throws it
-            var ballMass = 35;
-            var ballRadius = 0.4;
-
-            var ball = new THREE.Mesh( new THREE.SphereGeometry( ballRadius, 14, 10 ), ballMaterial );
-            ball.castShadow = true;
-            ball.receiveShadow = true;
-            var ballShape = new Ammo.btSphereShape( ballRadius );
-            ballShape.setMargin( margin );
-            var pos = new THREE.Vector3();
-            var quat = new THREE.Quaternion();
-            pos.copy( raycaster.ray.direction );
-            pos.add( raycaster.ray.origin );
-            quat.set( 0, 0, 0, 1 );
-            var ballBody = createRigidBody( ball, ballShape, ballMass, pos, quat );
-
-            pos.copy( raycaster.ray.direction );
-            pos.multiplyScalar( 24 );
-            ballBody.setLinearVelocity( new Ammo.btVector3( pos.x, pos.y, pos.z ) );
-
-        }, false );
-
     }
 
 
