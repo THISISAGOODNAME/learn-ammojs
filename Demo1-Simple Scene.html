@@ -3,12 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
-    <title>ammo.js通用模板</title>
+    <title>Demo1-简单场景</title>
 
     <style>
         body {
             margin: 0;
+            text-align: center;
         }
+
+        #info {
+            position: absolute;
+            top: 0;
+            width: 100%;
+            padding: 10px;
+        }
+
     </style>
 
     <script src="js/three.js"></script>
@@ -20,6 +29,7 @@
 <body>
 
 <div id="container"><br /><br /><br /><br /><br />Loading...</div>
+<div id="info">Demo1 - 简单场景,物块坠落</div>
 
 </body>
 
@@ -167,6 +177,20 @@
             ground.material.map = texture;
             ground.material.needsUpdate = texture;
         });
+
+        // 随机创建30个箱子
+        for (var i = 0; i < 30; i++) {
+            pos.set(Math.random(), 2 *i, Math.random());
+            quat.set(0, 0, 0, 1);
+
+            createParallellepiped(1, 1, 1, 1, pos, quat, createRendomColorObjectMeatrial());
+        }
+    }
+
+    // 生成随机颜色材质
+    function createRendomColorObjectMeatrial() {
+        var color = Math.floor(Math.random() * (1 << 24));
+        return new THREE.MeshPhongMaterial({color: color});
     }
 
     function createParallellepiped(sx, sy, sz, mass, pos, quat, material) {
