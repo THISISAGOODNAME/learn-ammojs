@@ -153,6 +153,10 @@
         // 添加窗口大小变化监听
         window.addEventListener('resize', onWindowResize, false);
 
+        // 添加坐标轴
+        var axis = new THREE.AxisHelper(200);
+        scene.add(axis);
+
     }
 
     function onWindowResize() {
