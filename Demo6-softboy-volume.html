@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
-    <title>Demo5 - cloth</title>
+    <title>Demo6 - softboy vulume</title>
 
     <style>
         body {
@@ -29,7 +29,7 @@
 <body>
 
 <div id="container"><br /><br /><br /><br /><br />Loading...</div>
-<div id="info">Demo5 - 布料<br>ZX键控制支架转动</div>
+<div id="info">Demo6 - 有体积的柔体<br>ZX键控制支架转动</div>
 
 </body>
 
@@ -213,18 +213,18 @@
 //        }
 
         // 创建一个球
-//        var ballMass =1.2;
-//        var ballRadius = 0.6;
-//
-//        var ball = new THREE.Mesh(new THREE.SphereGeometry(ballRadius, 20, 20), new THREE.MeshPhongMaterial( { color: 0x202020 } ));
-//        ball.castShadow = true;
-//        ball.receiveShadow = true;
-//        var ballShape = new Ammo.btSphereShape( ballRadius );
-//        ballShape.setMargin( margin );
-//        pos.set( -3, 2, 0 );
-//        quat.set( 0, 0, 0, 1 );
-//        createRigidBody( ball, ballShape, ballMass, pos, quat );
-//        ball.userData.physicsBody.setFriction( 0.5 );
+        var ballMass =1.2;
+        var ballRadius = 0.6;
+
+        var ball = new THREE.Mesh(new THREE.SphereGeometry(ballRadius, 20, 20), new THREE.MeshPhongMaterial( { color: 0x202020 } ));
+        ball.castShadow = true;
+        ball.receiveShadow = true;
+        var ballShape = new Ammo.btSphereShape( ballRadius );
+        ballShape.setMargin( margin );
+        pos.set( -3, 2, 0 );
+        quat.set( 0, 0, 0, 1 );
+        createRigidBody( ball, ballShape, ballMass, pos, quat );
+        ball.userData.physicsBody.setFriction( 0.5 );
 
         // 创建砖墙
         var brickMass = 0.5;
