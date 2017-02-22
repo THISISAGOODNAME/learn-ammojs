@@ -301,6 +301,7 @@
         var deltaTime = clock.getDelta();
 
         controls.update(deltaTime);
+        helper.animate(deltaTime);
         if ( physicsHelper !== undefined && physicsHelper.visible ) physicsHelper.update();
         if ( ikHelper !== undefined && ikHelper.visible ) ikHelper.update();
         effect.render(scene, camera);
