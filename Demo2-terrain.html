@@ -429,8 +429,8 @@
         }, false );
 
     }
-
-    // 生成渲染用高度场
+    
+    // 生成连续起伏(利用正弦函数)
     function generateHeight( width, depth, minHeight, maxHeight ) {
         // 使用正弦函数生成凹凸不平的场(sinus wave)
         var size = width * depth;
@@ -461,7 +461,7 @@
         return data;
     }
 
-    // 生成连续起伏(利用正弦函数)
+    // 生成物理引擎用高度场
     function createTerrainShape(heightData) {
 
         // This parameter is not really used, since we are using PHY_FLOAT height data type and hence it is ignored
