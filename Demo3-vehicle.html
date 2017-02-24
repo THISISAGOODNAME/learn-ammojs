@@ -538,7 +538,7 @@
         var engineForce = 0;
         var vehicleSteering = 0;
         var breakingForce = 0;
-        var tuning = new Ammo.btVehicleTuning(); // 保存车辆运行中的运动状态的变量
+        var tuning = new Ammo.btVehicleTuning(); // 保存车辆参数配置
         var rayCaster = new Ammo.btDefaultVehicleRaycaster(physicsWorld);
         var vehicle = new Ammo.btRaycastVehicle(tuning, body, rayCaster);
         vehicle.setCoordinateSystem(0, 1, 2);
