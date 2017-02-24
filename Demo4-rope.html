@@ -326,7 +326,7 @@
         arm.castShadow = true;
         arm.receiveShadow = true;
 
-        // 将球和直接用绳索链接
+        // 将球和支架用绳索链接
         var influence = 1;
         ropeSoftBody.appendAnchor(0, ball.userData.physicsBody, true, influence);
         ropeSoftBody.appendAnchor( ropeNumSegments, arm.userData.physicsBody, true, influence );
