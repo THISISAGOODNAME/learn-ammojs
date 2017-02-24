@@ -86,7 +86,12 @@
     var syncList = []; // 车辆系统用syncList保存事件列表,不再使用rigidBodies变量.存放用于绘制和同步物理场景的方法
 
     // 键盘相关
-    var actions = {};
+    var actions = {
+        'acceleration': false,
+        'braking': false,
+        'left': false,
+        'right': false
+    };
     var keysActions = {
         "KeyW":'acceleration',
         "KeyS":'braking',
