@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+<head>
+    <meta charset="UTF-8">
+    <title>MMD physics(ammo.wasm版)</title>
+
+    <style>
+        body {
+            margin: 0;
+            text-align: center;
+        }
+
+        #info {
+            position: absolute;
+            top: 0;
+            width: 100%;
+            padding: 10px;
+        }
+
+        #info a {
+            color: red;
+            font-weight: bold;
+            cursor: pointer;
+        }
+    </style>
+
+    <script src="../js/three.min.js"></script>
+
+    <script src="../js/libs/mmdparser.min.js"></script>
+    <!--<script src="../js/libs/ammo.js"></script>-->
+    <script src="ammo.wasm.js"></script>
+
+    <script src="../js/loaders/TGALoader.js"></script>
+    <script src="../js/loaders/MMDLoader.js"></script>
+
+    <script src="../js/effects/OutlineEffect.js"></script>
+
+    <script src="../js/animation/CCDIKSolver.js"></script>
+    <script src="../js/animation/MMDPhysics.js"></script>
+
+    <script src="../js/controls/OrbitControls.js"></script>
+
+    <script src="../js/Detector.js"></script>
+    <script src="../js/libs/stats.min.js"></script>
+    <script src="../js/libs/dat.gui.min.js"></script>
+</head>
+<body>
+
+<div id="info">
+    <a href="http://threejs.org" target="_blank">three.js</a> - MMD载入测试<br />
+    <a href="https://github.com/mrdoob/three.js/tree/master/examples/models/mmd#readme" target="_blank">MMD Assets license</a><br />
+    Copyright
+    <a href="http://www.geocities.jp/higuchuu4/index_e.htm" target="_blank">Model Data</a>
+    <a href="http://www.nicovideo.jp/watch/sm13147122" target="_blank">Dance Data</a>
+</div>
+<div id="container"><br /><br /><br /><br /><br />Loading...</div>
+
+<script>
+    // 检测浏览器是否支持webgl
+    if (!Detector.webgl) {
+        Detector.addGetWebGLMessage();
+        document.getElementById('container').innerHTML = '';
+    }
+
+    // 全局变量
+    var container, stats;
+
+    var mesh, camera, scene, renderer, effect;
+    var helper, ikHelper, physicsHelper;
+
+    var mouseX = 0, mouseY = 0;
+
+    var windowHalfX = window.innerWidth / 2;
+    var windowHalfY = window.innerHeight / 2;
+
+    var clock = new THREE.Clock();
+
+    var phongMaterials;
+    var originalMaterials;
+
+    // - 主程序
+    Ammo().then(function (Ammo) {
+        init();
+        animate();
+    });
+
+    // -函数定义
+
+    function init() {
+        initGraphics();
+        initModel();
+    }
+
+    function initGraphics() {
+        container = document.getElementById('container');
+        container.innerHTML = "";
+
+        camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 2000);
+        camera.position.z = 30;
+
+        controls = new THREE.OrbitControls(camera);
+        controls.target.y = 2;
+
+        renderer = new THREE.WebGLRenderer({antialias:true});
+        renderer.setClearColor( 0xbfd1e5 );
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+
+        textureLoader = new THREE.TextureLoader();
+
+        // 场景
+        scene = new THREE.Scene();
+
+        // 环境光
+        var ambientLight = new THREE.AmbientLight(0x404040);
+        scene.add(ambientLight);
+
+        // 线性光
+        var light = new THREE.DirectionalLight(0xffffff, 1);
+        light.position.set(-10, 10, 5);
+        light.castShadow = true;
+        var d = 10;
+        light.shadow.camera.left = -d;
+        light.shadow.camera.right = d;
+        light.shadow.camera.top = d;
+        light.shadow.camera.bottom = -d;
+
+        light.shadow.camera.near = 2;
+        light.shadow.camera.far = 2;
+
+        light.shadow.mapSize.x = 1024;
+        light.shadow.mapSize.y = 1024;
+
+        scene.add(light);
+
+        container.appendChild(renderer.domElement);
+
+        // 显示帧数
+        stats = new Stats();
+        stats.domElement.style.position = 'absolute';
+        stats.domElement.style.top = 'absolute';
+        container.appendChild(stats.domElement);
+
+        // 添加窗口大小变化监听
+        window.addEventListener('resize', onWindowResize, false);
+
+        // 添加地面
+        var gridHelper = new THREE.PolarGridHelper(30, 10);
+        gridHelper.position.y = -10;
+        scene.add(gridHelper);
+
+        // 轮廓线effect
+        effect = new THREE.OutlineEffect(renderer);
+    }
+
+    function initModel() {
+        var onProgress = function (xhr) {
+            if (xhr.lengthComputable) {
+                var percentComplete = xhr.loaded / xhr.total * 100;
+                console.log( Math.round(percentComplete, 2) + '% downloaded' );
+            }
+        };
+
+        var onError = function ( xhr ) {
+        };
+
+        var modelFile = '../models/mmd/miku/miku_v2.pmd';
+        var vmdFiles = [ '../models/mmd/vmds/wavefile_v2.vmd' ];
+
+        helper = new THREE.MMDHelper();
+
+        var loader = new THREE.MMDLoader();
+
+        loader.load(modelFile, vmdFiles, function (object) {
+            mesh = object;
+            mesh.position.y = -10;
+            scene.add(mesh);
+
+            helper.add(mesh);
+            helper.setAnimation(mesh);
+
+            /**
+             * 注意: CCDIKHelper要在helper.setAnimation()调用之后创建
+             */
+            ikHelper = new THREE.CCDIKHelper(mesh);
+            ikHelper.visible = false;
+            scene.add(ikHelper);
+
+            /**
+             * 注意: 建议helper.setPhysics()在helper.setAnimation()调用之后调用
+             */
+            helper.setPhysics(mesh);
+            physicsHelper = new THREE.MMDPhysicsHelper(mesh);
+            physicsHelper.visible = false;
+            scene.add(physicsHelper);
+
+            helper.unifyAnimationDuration({afterglow: 2.0});
+        }, onProgress, onError);
+
+        initGui();
+
+        function initGui () {
+
+            var api = {
+                'animation': true,
+                'gradient mapping': true,
+                'ik': true,
+                'outline': true,
+                'physics': true,
+                'show IK bones': false,
+                'show rigid bodies': false
+            };
+
+            var gui = new dat.GUI();
+
+            gui.add( api, 'animation' ).onChange( function () {
+                helper.doAnimation = api[ 'animation' ];
+            } );
+
+            gui.add( api, 'gradient mapping' ).onChange( function () {
+
+                if ( originalMaterials === undefined ) originalMaterials = mesh.material;
+                if ( phongMaterials === undefined ) makePhongMaterials( mesh.material.materials );
+
+                if ( api[ 'gradient mapping' ] ) {
+
+                    mesh.material = originalMaterials;
+
+                } else {
+
+                    mesh.material = phongMaterials;
+
+                }
+
+            } );
+
+            gui.add( api, 'ik' ).onChange( function () {
+                helper.doIk = api[ 'ik' ];
+            } );
+
+            gui.add( api, 'outline' ).onChange( function () {
+                effect.enabled = api[ 'outline' ];
+            } );
+
+            gui.add( api, 'physics' ).onChange( function () {
+                helper.enablePhysics( api[ 'physics' ] );
+            } );
+
+            gui.add( api, 'show IK bones' ).onChange( function () {
+                ikHelper.visible = api[ 'show IK bones' ];
+            } );
+
+            gui.add( api, 'show rigid bodies' ).onChange( function () {
+                if ( physicsHelper !== undefined ) physicsHelper.visible = api[ 'show rigid bodies' ];
+            } );
+
+        }
+
+    }
+
+
+
+    function makePhongMaterials ( materials ) {
+
+        var array = [];
+
+        for ( var i = 0, il = materials.length; i < il; i ++ ) {
+
+            var m = new THREE.MeshPhongMaterial();
+            m.copy( materials[ i ] );
+            m.needsUpdate = true;
+
+            array.push( m );
+
+        }
+
+        phongMaterials = new THREE.MultiMaterial( array );
+
+    }
+
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+
+        windowHalfX = window.innerWidth / 2;
+        windowHalfY = window.innerHeight / 2;
+
+        effect.setSize( window.innerWidth, window.innerHeight );
+
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+
+        render();
+
+        stats.update();
+
+    }
+
+    function render() {
+        var deltaTime = clock.getDelta();
+
+        controls.update(deltaTime);
+        helper.animate(deltaTime);
+        if ( physicsHelper !== undefined && physicsHelper.visible ) physicsHelper.update();
+        if ( ikHelper !== undefined && ikHelper.visible ) ikHelper.update();
+        effect.render(scene, camera);
+
+
+    }
+</script>
+
+</body>
+</html>

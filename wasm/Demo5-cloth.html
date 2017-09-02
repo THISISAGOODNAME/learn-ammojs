@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <title>Demo5 - cloth(ammo.wasm版)</title>
+
+    <style>
+        body {
+            margin: 0;
+            text-align: center;
+        }
+
+        #info {
+            position: absolute;
+            top: 0;
+            width: 100%;
+            padding: 10px;
+        }
+
+    </style>
+
+    <script src="../js/three.js"></script>
+    <!--<script src="../js/libs/ammo.js"></script>-->
+    <script src="ammo.wasm.js"></script>
+    <script src="../js/controls/OrbitControls.js"></script>
+    <script src="../js/libs/stats.min.js"></script>
+    <script src="../js/Detector.js"></script>
+</head>
+<body>
+
+<div id="container"><br /><br /><br /><br /><br />Loading...</div>
+<div id="info">Demo5 - 布料<br>ZX键控制支架转动</div>
+
+</body>
+
+<script>
+    // 检测浏览器是否支持webgl
+    if (!Detector.webgl) {
+        Detector.addGetWebGLMessage();
+        document.getElementById('container').innerHTML = '';
+    }
+
+    // 全局变量
+
+    // 绘图相关变量
+    var container, stats;
+    var camera, controls, scene, renderer;
+    var textureLoader;
+    var clock = new THREE.Clock();
+    var terrainMesh;
+
+    // 物理引擎相关变量
+    var gravityConstant = -9.8;
+    var collisionConfiguration;
+    var dispatcher;
+    var broadphase;
+    var solver;
+    var physicsWorld;
+    var rigidBodies = [];
+    var margin = 0.05;
+    var transformAux1;
+
+    //
+    var time = 0;
+
+    // 鼠标输入相关
+    var mouseCoords = new THREE.Vector2();
+    var raycaster = new THREE.Raycaster();
+    var ballMaterial = new THREE.MeshPhongMaterial( { color: 0x202020 } );
+
+    var maxNumObjectss = 30;
+
+    // 布料相关
+    var hinge;
+    var cloth;
+    var softBodySolver;
+
+    // 支架旋转
+    var armMovement = 0;
+
+
+    // - 主程序
+    Ammo().then(function (Ammo) {
+        init();
+        animate();
+    });
+
+
+    // -函数定义
+    function init() {
+
+        initGraphics();
+
+        initPhysics();
+
+        createObjects();
+
+        initInput();
+    }
+
+    function initGraphics() {
+        // three.js基本场景配置
+        container = document.getElementById('container');
+        container.innerHTML = "";
+
+        camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 2000);
+        camera.position.x = -7;
+        camera.position.y = 5;
+        camera.position.z = 8;
+
+        controls = new THREE.OrbitControls(camera);
+        controls.target.y = 2;
+
+        renderer = new THREE.WebGLRenderer({antialias:true});
+        renderer.setClearColor( 0xbfd1e5 );
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+
+        textureLoader = new THREE.TextureLoader();
+
+        // 场景
+        scene = new THREE.Scene();
+
+        // 环境光
+        var ambientLight = new THREE.AmbientLight(0x404040);
+        scene.add(ambientLight);
+
+        // 线性光
+        var light = new THREE.DirectionalLight(0xffffff, 1);
+        light.position.set(-10, 10, 5);
+        light.castShadow = true;
+        var d = 10;
+        light.shadow.camera.left = -d;
+        light.shadow.camera.right = d;
+        light.shadow.camera.top = d;
+        light.shadow.camera.bottom = -d;
+
+        light.shadow.camera.near = 2;
+        light.shadow.camera.far = 2;
+
+        light.shadow.mapSize.x = 1024;
+        light.shadow.mapSize.y = 1024;
+
+        scene.add(light);
+
+        container.appendChild(renderer.domElement);
+
+        // 显示帧数
+        stats = new Stats();
+        stats.domElement.style.position = 'absolute';
+        stats.domElement.style.top = 'absolute';
+        container.appendChild(stats.domElement);
+
+        // 添加窗口大小变化监听
+        window.addEventListener('resize', onWindowResize, false);
+
+        // 添加坐标轴
+        var axis = new THREE.AxisHelper(200);
+        scene.add(axis);
+
+    }
+
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+
+        renderer.setSize( window.innerWidth, window.innerHeight );
+
+    }
+
+    function initPhysics() {
+        transformAux1 = new Ammo.btTransform();
+
+        // bullet基本场景配置
+//        collisionConfiguration = new Ammo.btDefaultCollisionConfiguration();
+        /**
+         * 启动支持肉体的物理引擎
+         * config，solver和physicsWorld要用softbody版本
+         * 还要单独创建softBodySolver
+         */
+        collisionConfiguration = new Ammo.btSoftBodyRigidBodyCollisionConfiguration();
+        dispatcher = new Ammo.btCollisionDispatcher(collisionConfiguration);
+        broadphase = new Ammo.btDbvtBroadphase();
+        solver = new Ammo.btSequentialImpulseConstraintSolver();
+        softBodySolver = new Ammo.btDefaultSoftBodySolver();
+        physicsWorld = new Ammo.btSoftRigidDynamicsWorld(dispatcher, broadphase, solver, collisionConfiguration, softBodySolver);
+        physicsWorld.setGravity(new Ammo.btVector3(0, gravityConstant, 0));
+
+        physicsWorld.getWorldInfo().set_m_gravity(new Ammo.btVector3(0, gravityConstant, 0));
+    }
+
+    function createObjects() {
+        var pos = new THREE.Vector3();
+        var quat = new THREE.Quaternion();
+
+        // 创建地面
+        pos.set(0, -0.5, 0);
+        quat.set(0, 0, 0, 1);
+        var ground = createParallellepiped(40, 1, 40, 0, pos, quat, new THREE.MeshPhongMaterial({color: 0xffffff}));
+        ground.castShadow = true;       // 开启投影
+        ground.receiveShadow = true;    // 接受阴影(可以在表面上显示阴影)
+        textureLoader.load("../textures/grid.png", function (texture) {
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(40, 40);
+            ground.material.map = texture;
+            ground.material.needsUpdate = texture;
+        });
+
+//        // 生成30个随机物体
+//        for (var i = 0; i < maxNumObjectss; i++) {
+//            pos.set(Math.random(), 2 *i, Math.random());
+//            quat.set(0, 0, 0, 1);
+//
+//            createRondomObject(pos, quat, Math.ceil(Math.random() * 3));
+//        }
+
+        // 创建一个球
+//        var ballMass =1.2;
+//        var ballRadius = 0.6;
+//
+//        var ball = new THREE.Mesh(new THREE.SphereGeometry(ballRadius, 20, 20), new THREE.MeshPhongMaterial( { color: 0x202020 } ));
+//        ball.castShadow = true;
+//        ball.receiveShadow = true;
+//        var ballShape = new Ammo.btSphereShape( ballRadius );
+//        ballShape.setMargin( margin );
+//        pos.set( -3, 2, 0 );
+//        quat.set( 0, 0, 0, 1 );
+//        createRigidBody( ball, ballShape, ballMass, pos, quat );
+//        ball.userData.physicsBody.setFriction( 0.5 );
+
+        // 创建砖墙
+        var brickMass = 0.5;
+        var brickLength = 1.2;
+        var brickDepth = 0.6;
+        var brickHeight = brickLength * 0.5;
+        var numBricksLength = 6;
+        var numBricksHeight = 8;
+        var z0 = - numBricksLength * brickLength * 0.5;
+        pos.set( 0, brickHeight * 0.5, z0 );
+        quat.set( 0, 0, 0, 1 );
+        for ( var j = 0; j < numBricksHeight; j ++ ) {
+            var oddRow = ( j % 2 ) == 1;
+            pos.z = z0;
+            if ( oddRow ) {
+                pos.z -= 0.25 * brickLength;
+            }
+            var nRow = oddRow? numBricksLength + 1 : numBricksLength;
+            for ( var i = 0; i < nRow; i ++ ) {
+                var brickLengthCurrent = brickLength;
+                var brickMassCurrent = brickMass;
+                if ( oddRow && ( i == 0 || i == nRow - 1 ) ) {
+                    brickLengthCurrent *= 0.5;
+                    brickMassCurrent *= 0.5;
+                }
+                var brick = createParallellepiped( brickDepth, brickHeight, brickLengthCurrent, brickMassCurrent, pos, quat, createRendomColorObjectMeatrial() );
+                brick.castShadow = true;
+                brick.receiveShadow = true;
+                if ( oddRow && ( i == 0 || i == nRow - 2 ) ) {
+                    pos.z += 0.75 * brickLength;
+                }
+                else {
+                    pos.z += brickLength;
+                }
+            }
+            pos.y += brickHeight;
+        }
+
+        // 布料
+
+        // 布料的绘制部分
+        var clothWidth = 4;
+        var clothHeight = 3;
+        var clothNumSegmentsZ = clothWidth * 5;
+        var clothNumSegmentsY = clothHeight * 5;
+        var clothSegmentLengthZ = clothWidth / clothNumSegmentsZ;
+        var clothSegmentLengthY = clothHeight / clothNumSegmentsY;
+        var clothPos = new THREE.Vector3( -3, 3, 2 );
+
+        var clothGeometry = new THREE.PlaneBufferGeometry(clothWidth, clothHeight, clothNumSegmentsZ, clothNumSegmentsY);
+        clothGeometry.rotateY(Math.PI * 0.5);
+        clothGeometry.translate(clothPos.x, clothPos.y + clothHeight + 0.5, clothPos.x, clothWidth * 0.5);
+        var clothMaterial = new THREE.MeshLambertMaterial( { color: 0xFFFFFF, side: THREE.DoubleSide } );
+        cloth = new THREE.Mesh( clothGeometry, clothMaterial );
+        cloth.castShadow = true;
+        cloth.receiveShadow = true;
+        scene.add( cloth );
+        textureLoader.load( "../textures/grid.png", function( texture ) {
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set( clothNumSegmentsZ, clothNumSegmentsY );
+            cloth.material.map = texture;
+            cloth.material.needsUpdate = true;
+        } );
+
+        // 布料的物理部分
+        var softBodyHelpers = new Ammo.btSoftBodyHelpers();
+        var clothCorner00 = new Ammo.btVector3( clothPos.x, clothPos.y + clothHeight, clothPos.z );
+        var clothCorner01 = new Ammo.btVector3( clothPos.x, clothPos.y + clothHeight, clothPos.z - clothWidth );
+        var clothCorner10 = new Ammo.btVector3( clothPos.x, clothPos.y, clothPos.z );
+        var clothCorner11 = new Ammo.btVector3( clothPos.x, clothPos.y, clothPos.z - clothWidth );
+        var clothSoftBody = softBodyHelpers.CreatePatch( physicsWorld.getWorldInfo(), clothCorner00, clothCorner01, clothCorner10, clothCorner11, clothNumSegmentsZ + 1, clothNumSegmentsY + 1, 0, true );
+        var sbConfig = clothSoftBody.get_m_cfg();
+        sbConfig.set_viterations( 10 );
+        sbConfig.set_piterations( 10 );
+
+        clothSoftBody.setTotalMass( 0.9, false );
+        Ammo.castObject( clothSoftBody, Ammo.btCollisionObject ).getCollisionShape().setMargin( margin * 3 );
+        physicsWorld.addSoftBody( clothSoftBody, 1, -1 );
+        cloth.userData.physicsBody = clothSoftBody;
+        // Disable deactivation
+        var DISABLE_DEACTIVATION = 4;
+        clothSoftBody.setActivationState(DISABLE_DEACTIVATION);
+
+        // 支架
+        var armMass = 2;
+//        var armLength = 3;
+        var armLength = 3 + clothWidth;
+        var pylonHeight = clothPos.y + clothHeight;
+        var baseMaterial = new THREE.MeshPhongMaterial( { color: 0x606060 } );
+        pos.set( clothPos.x, 0.1, clothPos.z - armLength );
+        quat.set( 0, 0, 0, 1 );
+        var base = createParallellepiped( 1, 0.2, 1, 0, pos, quat, baseMaterial );
+        base.castShadow = true;
+        base.receiveShadow = true;
+        pos.set( clothPos.x, 0.5 * pylonHeight, clothPos.z - armLength );
+        var pylon = createParallellepiped( 0.4, pylonHeight, 0.4, 0, pos, quat, baseMaterial );
+        pylon.castShadow = true;
+        pylon.receiveShadow = true;
+        pos.set( clothPos.x, pylonHeight + 0.2, clothPos.z - 0.5 * armLength );
+        var arm = createParallellepiped( 0.4, 0.4, armLength + 0.4, armMass, pos, quat, baseMaterial );
+        arm.castShadow = true;
+        arm.receiveShadow = true;
+
+        // 将球和直接用绳索链接
+        var influence = 0.5;
+        clothSoftBody.appendAnchor(0, arm.userData.physicsBody, true, influence);
+        clothSoftBody.appendAnchor( clothNumSegmentsZ, arm.userData.physicsBody, true, influence );
+
+        // 给支架臂添加铰链约束
+        var pivotA = new Ammo.btVector3(0, pylonHeight * 0.5, 0);
+        var pivotB = new Ammo.btVector3(0, -0.2, -armLength * 0.5);
+        var axis = new Ammo.btVector3(0, 1, 0);
+        hinge = new Ammo.btHingeConstraint(pylon.userData.physicsBody, arm.userData.physicsBody, pivotA, pivotB, axis, axis, true);
+        physicsWorld.addConstraint(hinge, true);
+    }
+
+    // 生成随机形状的物体
+    function createRondomObject(pos, quat, objectSize) {
+        var numTypes = 4;
+        var objectType = Math.ceil( Math.random() * numTypes );
+
+        var threeObject = null;
+        var shape = null;
+
+//        var objectSize = 3;
+
+        switch (objectType) {
+            case 1:
+                // Sphere
+                var radius = 1 + Math.random() * objectSize;
+                threeObject = new THREE.Mesh( new THREE.SphereGeometry( radius, 20, 20 ), createRendomColorObjectMeatrial() );
+                shape = new Ammo.btSphereShape( radius );
+                shape.setMargin( margin );
+                break;
+            case 2:
+                // Box
+                var sx = 1 + Math.random() * objectSize;
+                var sy = 1 + Math.random() * objectSize;
+                var sz = 1 + Math.random() * objectSize;
+                threeObject = new THREE.Mesh( new THREE.BoxGeometry( sx, sy, sz, 1, 1, 1 ), createRendomColorObjectMeatrial() );
+                shape = new Ammo.btBoxShape( new Ammo.btVector3( sx * 0.5, sy * 0.5, sz * 0.5 ) );
+                shape.setMargin( margin );
+                break;
+            case 3:
+                // Cylinder
+                var radius = 1 + Math.random() * objectSize;
+                var height = 1 + Math.random() * objectSize;
+                threeObject = new THREE.Mesh( new THREE.CylinderGeometry( radius, radius, height, 20, 1 ), createRendomColorObjectMeatrial() );
+                shape = new Ammo.btCylinderShape( new Ammo.btVector3( radius, height * 0.5, radius ) );
+                shape.setMargin(margin);
+                break;
+            default:
+                // Cone
+                var radius = 1 + Math.random() * objectSize;
+                var height = 2 + Math.random() * objectSize;
+                threeObject = new THREE.Mesh( new THREE.CylinderGeometry( 0, radius, height, 20, 2 ), createRendomColorObjectMeatrial() );
+                shape = new Ammo.btConeShape( radius, height );
+                break;
+        }
+
+        var mass = objectSize * 5; // 体积越大质量越大
+
+        createRigidBody(threeObject, shape, mass, pos, quat);
+
+    }
+
+    // 生成随机颜色材质
+    function createRendomColorObjectMeatrial() {
+        var color = Math.floor(Math.random() * (1 << 24));
+        return new THREE.MeshPhongMaterial({color: color});
+    }
+
+    function createParallellepiped(sx, sy, sz, mass, pos, quat, material) {
+        var threeObject = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz, 1, 1, 1), material);
+        var shape = new Ammo.btBoxShape(new Ammo.btVector3(sx * 0.5, sy * 0.5, sz * 0.5));
+        shape.setMargin(margin);
+
+        createRigidBody(threeObject, shape, mass, pos, quat);
+
+        return threeObject;
+    }
+
+    function createRigidBody(threeObject, physicsShape, mass, pos, quat) {
+        threeObject.position.copy(pos);
+        threeObject.quaternion.copy(quat);
+
+        var transform = new Ammo.btTransform();
+        transform.setIdentity();
+        transform.setOrigin(new Ammo.btVector3(pos.x, pos.y, pos.z));
+        transform.setRotation(new Ammo.btQuaternion(quat.x, quat.y, quat.z, quat.w));
+        var motionState = new Ammo.btDefaultMotionState(transform);
+
+        var localInertia = new Ammo.btVector3(0, 0, 0);
+        physicsShape.calculateLocalInertia(mass, localInertia);
+
+        var rbInfo = new Ammo.btRigidBodyConstructionInfo(mass, motionState, physicsShape, localInertia);
+        var body = new Ammo.btRigidBody(rbInfo);
+
+        threeObject.userData.physicsBody = body;
+
+        scene.add(threeObject);
+
+        if (mass > 0) {
+            rigidBodies.push(threeObject);
+
+            // Disable deactivation
+            // 防止物体弹力过快消失
+
+            // Ammo.DISABLE_DEACTIVATION = 4
+            body.setActivationState(4);
+        }
+
+        physicsWorld.addRigidBody(body);
+
+        return body;
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+
+        render();
+
+        stats.update();
+
+    }
+
+    function render() {
+        var deltaTime = clock.getDelta();
+
+        updatePhysics(deltaTime);
+
+        controls.update(deltaTime);
+
+        renderer.render(scene, camera);
+
+        time += deltaTime;
+    }
+
+    function updatePhysics(deltaTime) {
+        physicsWorld.stepSimulation(deltaTime, 10); // 减少迭代次数提高性能
+
+        // 更新物体位置
+        for (var i = 0, iL = rigidBodies.length; i <iL; i++ ){
+            var objThree = rigidBodies[i];
+            var objPhys = objThree.userData.physicsBody;
+            var ms = objPhys.getMotionState();
+            if (ms) {
+                ms.getWorldTransform(transformAux1);
+                var p = transformAux1.getOrigin();
+                var q = transformAux1.getRotation();
+                objThree.position.set(p.x(), p.y(), p.z());
+                objThree.quaternion.set(q.x(), q.y(), q.z(), q.w());
+            }
+        }
+
+        // 更新布料状态
+        var softBody = cloth.userData.physicsBody;
+        var clothPositions = cloth.geometry.attributes.position.array;
+        var numVerts = clothPositions.length / 3;
+        var nodes = softBody.get_m_nodes();
+        var indexFloat = 0;
+        for (var i = 0; i <numVerts; i++) {
+            var node = nodes.at(i);
+            var nodePos = node.get_m_x();
+            clothPositions[ indexFloat++ ] = nodePos.x();
+            clothPositions[ indexFloat++ ] = nodePos.y();
+            clothPositions[ indexFloat++ ] = nodePos.z();
+        }
+        cloth.geometry.computeVertexNormals();
+        cloth.geometry.attributes.position.needsUpdate = true;
+        cloth.geometry.attributes.normal.needsUpdate = true;
+
+        // ZX控制铰链转动
+        hinge.enableAngularMotor(true, 0.8 * armMovement, 50);
+    }
+
+    function initInput() {
+
+        window.addEventListener( 'mousedown', function( event ) {
+
+            mouseCoords.set(
+                    ( event.clientX / window.innerWidth ) * 2 - 1,
+                    - ( event.clientY / window.innerHeight ) * 2 + 1
+            );
+
+            raycaster.setFromCamera( mouseCoords, camera );
+
+            // Creates a ball and throws it
+            var ballMass = 35;
+            var ballRadius = 0.4;
+
+            var ball = new THREE.Mesh( new THREE.SphereGeometry( ballRadius, 14, 10 ), ballMaterial );
+            ball.castShadow = true;
+            ball.receiveShadow = true;
+            var ballShape = new Ammo.btSphereShape( ballRadius );
+            ballShape.setMargin( margin );
+            var pos = new THREE.Vector3();
+            var quat = new THREE.Quaternion();
+            pos.copy( raycaster.ray.direction );
+            pos.add( raycaster.ray.origin );
+            quat.set( 0, 0, 0, 1 );
+            var ballBody = createRigidBody( ball, ballShape, ballMass, pos, quat );
+
+            pos.copy( raycaster.ray.direction );
+            pos.multiplyScalar( 24 );
+            ballBody.setLinearVelocity( new Ammo.btVector3( pos.x, pos.y, pos.z ) );
+
+        }, false );
+
+        window.addEventListener( 'keydown', function( event ) {
+            switch ( event.code ) {
+                    // Z
+                case 'KeyZ':
+                    armMovement = 1;
+                    break;
+                    // X
+                case 'KeyX':
+                    armMovement = - 1;
+                    break;
+            }
+        }, false );
+        window.addEventListener( 'keyup', function( event ) {
+            armMovement = 0;
+        }, false );
+
+    }
+</script>
+
+</html>
